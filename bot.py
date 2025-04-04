@@ -3,7 +3,6 @@ from telebot import types
 from datetime import datetime
 from flask import Flask
 import os
-import threading
 
 # Создаём Flask-приложение
 app = Flask(__name__)
@@ -58,7 +57,6 @@ def send_welcome(message):
                               "Добавь его в настройках (@username) и начни заново с /start.")
         return
     
-    # Создаём приветственное сообщение с инлайн-кнопкой
     markup = types.InlineKeyboardMarkup()
     start_button = types.InlineKeyboardButton("✨ Начать подачу заявки", callback_data="start_application")
     markup.add(start_button)
@@ -79,7 +77,6 @@ def admin_menu(message):
         bot.reply_to(message, "📂 Пока нет заявок.")
         return
     
-    # Показываем все заявки
     for idx, app in enumerate(all_applications, 1):
         app_text = create_application_text(app, include_timestamp=True)
         bot.send_message(message.chat.id, f"Заявка #{idx}\n{app_text}")
@@ -93,13 +90,11 @@ def callback_query(call):
         bot.answer_callback_query(call.id, "❌ Пожалуйста, начни с команды /start!")
         return
 
-    # Нажатие на "Начать подачу заявки"
     if call.data == "start_application":
         bot.edit_message_text(chat_id=chat_id, message_id=call.message.message_id,
                               text="📝 Отлично! Напиши своё имя:")
         applications[chat_id]['step'] = 'name'
 
-    # Выбор роли
     elif call.data in ROLES:
         applications[chat_id]['role'] = call.data
         role_description = ROLE_DESCRIPTIONS.get(call.data, "Описание отсутствует.")
@@ -109,13 +104,11 @@ def callback_query(call):
                                     "Напиши пару слов о себе или почему хочешь в команду:")
         applications[chat_id]['step'] = 'comment'
 
-    # Редактирование имени
     elif call.data == "edit_name":
         bot.edit_message_text(chat_id=chat_id, message_id=call.message.message_id,
                               text="📝 Введи новое имя:")
         applications[chat_id]['step'] = 'edit_name'
 
-    # Редактирование роли
     elif call.data == "edit_role":
         markup = types.InlineKeyboardMarkup(row_width=2)
         for role in ROLES:
@@ -124,18 +117,14 @@ def callback_query(call):
                               text="🎭 Выбери новую роль:", reply_markup=markup)
         applications[chat_id]['step'] = 'edit_role'
 
-    # Редактирование комментария
     elif call.data == "edit_comment":
         bot.edit_message_text(chat_id=chat_id, message_id=call.message.message_id,
                               text="💬 Введи новый комментарий:")
         applications[chat_id]['step'] = 'edit_comment'
 
-    # Отправка заявки
     elif call.data == "submit_application":
-        # Добавляем дату и время отправки
         applications[chat_id]['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         application = create_application_text(applications[chat_id], include_timestamp=True)
-        # Сохраняем заявку в список
         all_applications.append(applications[chat_id].copy())
         bot.edit_message_text(chat_id=chat_id, message_id=call.message.message_id,
                               text=f"🎉 Заявка отправлена!\n{application}")
@@ -154,7 +143,6 @@ def handle_text(message):
 
     step = applications[chat_id]['step']
 
-    # Шаг 1: Сохраняем имя
     if step == 'name':
         applications[chat_id]['name'] = message.text
         markup = types.InlineKeyboardMarkup(row_width=2)
@@ -164,7 +152,6 @@ def handle_text(message):
                               "Теперь выбери роль в команде:", reply_markup=markup)
         applications[chat_id]['step'] = 'role'
 
-    # Шаг 2: Сохраняем комментарий и показываем предпросмотр
     elif step == 'comment':
         applications[chat_id]['comment'] = message.text
         application_text = create_application_text(applications[chat_id])
@@ -174,7 +161,6 @@ def handle_text(message):
                               reply_markup=markup)
         applications[chat_id]['step'] = 'preview'
 
-    # Редактирование имени
     elif step == 'edit_name':
         applications[chat_id]['name'] = message.text
         application_text = create_application_text(applications[chat_id])
@@ -185,7 +171,6 @@ def handle_text(message):
                               reply_markup=markup)
         applications[chat_id]['step'] = 'preview'
 
-    # Редактирование комментария
     elif step == 'edit_comment':
         applications[chat_id]['comment'] = message.text
         application_text = create_application_text(applications[chat_id])
@@ -196,7 +181,6 @@ def handle_text(message):
                               reply_markup=markup)
         applications[chat_id]['step'] = 'preview'
 
-    # Если пользователь ввёл что-то не то
     else:
         bot.reply_to(message, "❌ Пожалуйста, следуй инструкциям! "
                               "Если что-то пошло не так, начни заново с /start.")
@@ -206,15 +190,6 @@ def handle_text(message):
 def home():
     return "Bot is running!"
 
-# Функция для запуска бота в отдельном потоке
-def run_bot():
-    bot.polling()
-
-# Запускаем Flask и бота
-if __name__ == "__main__":
-    # Запускаем бота в отдельном потоке
-    bot_thread = threading.Thread(target=run_bot)
-    bot_thread.start()
-    # Запускаем Flask-сервер
-    port = int(os.getenv("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+# Запуск бота в polling-режиме
+bot.remove_webhook()
+bot.polling()
